@@ -4,9 +4,9 @@
  
 ## Installation
 
-Install package with NPM and add it to your development dependencies:
+Install package with NPM:
 
-`npm install --save-dev gulp-wind-assets-md5`
+`npm install gulp-wind-assets-md5`
 
 ## Usage
 
