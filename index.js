@@ -3,7 +3,6 @@
 var through = require('through2'),
     gutil = require('gulp-util'),
     path = require('path'),
-    fs = require('fs'),
     crypto = require('crypto-md5');
 
 function calMd5(file, size) {
@@ -11,23 +10,67 @@ function calMd5(file, size) {
     return size > 0 ? md5.slice(0, size) : md5;
 }
 
-module.exports = function (destPath, md5Size) {
-    if (!destPath) {
-        throw new PluginError('gulp-wind-assets-md5', 'Missing destPath option for gulp-wind-assets-md5');
-    }
-
-    md5Size = md5Size || 8;
-    var srcReg = /\ssrc="([^"?]*)"/g,
+module.exports = function (config) {
+    config = config || {};
+    var md5Length = config.md5Size || 8,
+        verType = config.md5Type || 'query',
+        srcReg = /\ssrc="([^"?]*)"/g,
         hrefReg = /<link.*\shref="([^"?]*)"/g,
         urlReg = /url\("?([^\?)"]*)"?\)/g,
         htmlFiles = [],
+        cssFiles = [],
         assetPath,
         reg,
-        data,
         md5Version,
-        md5Path;
+        md5Path,
+        md5Obj = {},
+        endStream;
 
-    return through.obj(function (file, enc, cb) {
+    function verPath(filePath, version) {
+        var dirname = path.dirname(filePath);
+        var extName = path.extname(filePath);
+        var baseName = path.basename(filePath, extName);
+        if (verType === 'file') {
+            return dirname + '/' + baseName + '_' + version + extName;
+        } else {
+            return filePath + '?v=' + version;
+        }
+    }
+
+    function verFile(txtFile) {
+        var fileSrc = String(txtFile.contents),
+            regArr,
+            assets = {};
+
+        // 'js' 'img' and 'src' link tag.
+        while (regArr = srcReg.exec(fileSrc) || hrefReg.exec(fileSrc) || urlReg.exec(fileSrc)) {
+            assetPath = regArr[1];
+            if (assetPath && assetPath.indexOf('//') < 0) {
+                assets[assetPath] = assetPath;
+            }
+        }
+
+        for (var item in assets) {
+            reg = new RegExp(item, 'g');
+            md5Path = path.resolve(path.dirname(txtFile.path), item);
+            fileSrc = fileSrc.replace(reg, verPath(item, md5Obj[md5Path]));
+        }
+
+        txtFile.contents = new Buffer(fileSrc);
+
+        // cache mad5.
+        md5Version = calMd5(txtFile.contents, md5Length);
+        md5Obj[txtFile.path] = md5Version;
+
+        if (verType === 'file' && path.extname(txtFile.path) === '.css') {
+            txtFile.path = verPath(txtFile.path, md5Version);
+        }
+
+        endStream.push(txtFile);
+    }
+
+    // copy and cache file's md5 which are not css and html files
+    function step1(file, enc, cb) {
         if (file.isStream()) {
             this.emit('error', new gutil.PluginError('gulp-wind-assets-md5', 'Streaming not supported'));
             return cb();
@@ -35,82 +78,38 @@ module.exports = function (destPath, md5Size) {
         if (!file.contents) {
             return cb();
         }
-        var fileSrc = String(file.contents);
-        var regArr;
         var assets = {};
-        if (path.extname(file.path) !== '.css') {
-            // this is html,hold until the end.
-            if (path.extname(file.path) === '.html') {
+
+        switch (path.extname(file.path)) {
+            case '.html':
                 htmlFiles.push(file);
                 cb();
-                return;
-            } else {
-                // copy others files such as 'jpg,png,svg,json...'
+                break;
+            case '.css':
+                cssFiles.push(file);
+                cb();
+                break;
+            default :
+                // cache mad5.
+                md5Version = calMd5(file.contents, md5Length);
+                md5Obj[file.path] = md5Version;
+                // copy others files such as 'js,jpg,png,svg,json...'
+                if (verType === 'file') {
+                    file.path = verPath(file.path, md5Version);
+                }
                 cb(null, file);
-                return;
-            }
         }
-        // generate css files.
-        while (regArr = urlReg.exec(fileSrc)) {
-            assetPath = regArr[1];
-            if (assetPath) {
-                if (!assets[assetPath]) {
-                    assets[assetPath] = 1;
-                    reg = new RegExp(assetPath, 'g');
-                    md5Path = path.resolve(path.dirname(file.path), assetPath);
-                    if (fs.existsSync(md5Path)) {
-                        data = fs.readFileSync(md5Path);
-                        md5Version = calMd5(data, md5Size);
-                        fileSrc = fileSrc.replace(reg, assetPath + '?m=' + md5Version);
-                    }
-                }
-            }
-        }
-        file.contents = new Buffer(fileSrc);
-        cb(null, file);
-    }, function (cb) {
-        var that = this;
-        // generate html files.
-        htmlFiles.forEach(function (htmlFile) {
-            var fileSrc = String(htmlFile.contents),
-                regArr,
-                assets = {};
-            // js and img link tag.
-            while (regArr = srcReg.exec(fileSrc)) {
-                assetPath = regArr[1];
-                if (assetPath) {
-                    if (!assets[assetPath]) {
-                        assets[assetPath] = 1;
-                        reg = new RegExp(assetPath, 'g');
-                        md5Path = path.resolve(path.dirname(htmlFile.path), assetPath);
-                        if (fs.existsSync(md5Path)) {
-                            data = fs.readFileSync(md5Path);
-                            md5Version = calMd5(data, md5Size);
-                            fileSrc = fileSrc.replace(reg, assetPath + '?m=' + md5Version);
-                        }
-                    }
-                }
-            }
-            // css link tag
-            while (regArr = hrefReg.exec(fileSrc)) {
-                assetPath = regArr[1];
-                if (assetPath) {
-                    if (!assets[assetPath]) {
-                        assets[assetPath] = 1;
-                        reg = new RegExp(assetPath, 'g');
-                        var targetPath = path.relative(htmlFile.base, htmlFile.path);
-                        md5Path = path.resolve(path.dirname(path.resolve(htmlFile.cwd, destPath, targetPath)), assetPath);
-                        if (fs.existsSync(md5Path)) {
-                            data = fs.readFileSync(md5Path);
-                            md5Version = calMd5(data, md5Size);
-                            fileSrc = fileSrc.replace(reg, assetPath + '?m=' + md5Version);
-                        }
-                    }
-                }
-            }
-            htmlFile.contents = new Buffer(fileSrc);
-            that.push(htmlFile);
-        });
+    }
+
+    // operate css and html files
+    function step2(cb) {
+        endStream = this;
+        // generate css files
+        cssFiles.forEach(verFile);
+        // generate html files(html must be the last)
+        htmlFiles.forEach(verFile);
         cb();
-    });
+    }
+
+    return through.obj(step1, step2);
 };
