@@ -14,9 +14,9 @@ module.exports = function (config) {
     config = config || {};
     var md5Length = config.md5Size || 8,
         verType = config.md5Type || 'query',
-        srcReg = /\ssrc="([^"?]*)"/g,
-        hrefReg = /<link.*\shref="([^"?]*)"/g,
-        urlReg = /url\("?([^\?)"]*)"?\)/g,
+        srcReg = /\ssrc="([^"]*)"/g,
+        hrefReg = /<link.*\shref="([^"]*)"/g,
+        urlReg = /url\("?([^)"]*)"?\)/g,
         htmlFiles = [],
         cssFiles = [],
         assetPath,
@@ -25,6 +25,13 @@ module.exports = function (config) {
         md5Path,
         md5Obj = {},
         endStream;
+
+    function removeQuery(str) {
+        if (str.indexOf('?') > -1) {
+            return str.substr(0, str.indexOf('?'));
+        }
+        return str;
+    }
 
     function verPath(filePath, version) {
         var dirname = path.dirname(filePath);
@@ -51,9 +58,10 @@ module.exports = function (config) {
         }
 
         for (var item in assets) {
-            reg = new RegExp(item, 'g');
-            md5Path = path.resolve(path.dirname(txtFile.path), item);
-            fileSrc = fileSrc.replace(reg, verPath(item, md5Obj[md5Path]));
+            reg = new RegExp(item.replace('?', '\\?'), 'g');
+            var noQuery = removeQuery(item);
+            md5Path = path.resolve(path.dirname(txtFile.path), noQuery);
+            fileSrc = fileSrc.replace(reg, verPath(noQuery, md5Obj[md5Path]));
         }
 
         txtFile.contents = new Buffer(fileSrc);

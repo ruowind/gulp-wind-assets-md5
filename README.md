@@ -26,18 +26,20 @@ gulp.task('windmd5', function () {
 ## Options
 
 - `md5Size`
-    the length of md5 sting,default is `8`.
+    the length of md5 sting, default is `8`.
 
 - `md5Type`
-    the type to prevent cache.default is `query`
+    the type to prevent cache. default is `query`
     
     - `query`
         add query to link like.
+
         ```
         <script src="js/jquery.js?v=7f38dcbf"></script>
         ```
     - `file`
         append md5 string to file name like.
+
         ```
         <script src="js/jquery_7f38dcbf.js"></script>
         ```
