@@ -3,6 +3,7 @@
 var through = require('through2'),
     gutil = require('gulp-util'),
     path = require('path'),
+    url = require('url'),
     crypto = require('crypto-md5');
 
 function calMd5(file, size) {
@@ -14,6 +15,7 @@ module.exports = function (config) {
     config = config || {};
     var md5Length = config.md5Size || 8,
         verType = config.md5Type || 'query',
+        baseUrl = config.baseUrl || null,
         srcReg = /\ssrc="([^"]*)"/g,
         hrefReg = /<link.*\shref="([^"]*)"/g,
         urlReg = /url\("?([^)"]*)"?\)/g,
@@ -61,7 +63,15 @@ module.exports = function (config) {
             reg = new RegExp(item.replace('?', '\\?'), 'g');
             var noQuery = removeQuery(item);
             md5Path = path.resolve(path.dirname(txtFile.path), noQuery);
-            fileSrc = fileSrc.replace(reg, verPath(noQuery, md5Obj[md5Path]));
+
+            if (baseUrl) {
+                var relativePath = path.relative(txtFile.base, md5Path);
+                noQuery = url.resolve(baseUrl, relativePath);
+            }
+
+            if (md5Obj[md5Path]) {
+                fileSrc = fileSrc.replace(reg, verPath(noQuery, md5Obj[md5Path]));
+            }
         }
 
         txtFile.contents = new Buffer(fileSrc);

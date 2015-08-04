@@ -1,6 +1,6 @@
 {
   "name": "gulp-wind-assets-md5",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "version the static files in html and css",
   "main": "index.js",
   "scripts": {

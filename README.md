@@ -43,3 +43,18 @@ gulp.task('windmd5', function () {
         ```
         <script src="js/jquery_7f38dcbf.js"></script>
         ```
+        
+- `baseUrl`
+    set baseurl for statice files.
+    
+    form
+    
+    ```
+    <script src="js/jquery.js"></script>
+    ```
+    
+    to
+    
+    ```
+    <script src="http://static.ruowind.com/test/js/jquery.js?v=7f38dcbf"></script>
+    ```
